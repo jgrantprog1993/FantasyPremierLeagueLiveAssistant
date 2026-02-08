@@ -304,27 +304,6 @@ function LeaguesContent() {
               </div>
             )}
 
-            {/* Quick Actions */}
-            <div className="flex flex-wrap gap-3 mt-6">
-              <Link
-                href={`/team/${submittedTeamId}`}
-                className="px-4 py-2 bg-[var(--fpl-purple)]/10 text-[var(--fpl-purple)] rounded-lg hover:bg-[var(--fpl-purple)]/20 transition-colors text-sm font-medium"
-              >
-                View Team
-              </Link>
-              <Link
-                href={`/live?team=${submittedTeamId}`}
-                className="px-4 py-2 bg-[var(--fpl-green)]/10 text-[var(--fpl-green)] rounded-lg hover:bg-[var(--fpl-green)]/20 transition-colors text-sm font-medium"
-              >
-                Live Tracker
-              </Link>
-              <button
-                onClick={() => setSubmittedTeamId('')}
-                className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
-              >
-                Change Team
-              </button>
-            </div>
           </>
         )}
       </main>

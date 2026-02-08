@@ -528,21 +528,6 @@ function LiveTrackerContent() {
               </div>
             </div>
 
-            {/* Change Team */}
-            <div className="flex gap-3">
-              <Link
-                href={`/team/${submittedTeamId}`}
-                className="px-4 py-2 bg-[var(--fpl-purple)]/10 text-[var(--fpl-purple)] rounded-lg hover:bg-[var(--fpl-purple)]/20 transition-colors text-sm font-medium"
-              >
-                View Full Team
-              </Link>
-              <button
-                onClick={() => setSubmittedTeamId('')}
-                className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
-              >
-                Track Different Team
-              </button>
-            </div>
           </>
         )}
       </main>
