@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+:root {
+  /* FPL Brand Colors - matched from official site */
+  --fpl-purple: #37003c;
+  --fpl-purple-light: #5a0052;
+  --fpl-green: #00ff87;
+  --fpl-green-dark: #00cc6a;
+  --fpl-cyan: #04f5ff;
+  --fpl-pink: #ff2882;
+  --fpl-yellow: #ebff00;
+
+  /* Element type colors */
+  --goalkeeper: #ebff00;
+  --defender: #00ff87;
+  --midfielder: #04f5ff;
+  --forward: #ff2882;
+
+  /* Position colors for pitch display */
+  --position-gk: #ebff00;
+  --position-def: #00ff87;
+  --position-mid: #04f5ff;
+  --position-fwd: #ff2882;
+
+  /* Neutral Colors */
+  --background: #f0f0f0;
+  --foreground: #333333;
+  --card-bg: #ffffff;
+  --muted: #6c757d;
+  --border: #dee2e6;
+
+  /* Semantic Colors */
+  --success: #00ff87;
+  --warning: #ebff00;
+  --error: #ff2882;
+  --info: #04f5ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-fpl-purple: var(--fpl-purple);
+  --color-fpl-green: var(--fpl-green);
+  --color-fpl-cyan: var(--fpl-cyan);
+  --color-fpl-pink: var(--fpl-pink);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a1a2e;
+    --foreground: #ededed;
+    --card-bg: #16213e;
+    --muted: #9ca3af;
+    --border: #374151;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+/* FPL-style gradient backgrounds */
+.fpl-gradient {
+  background: linear-gradient(135deg, var(--fpl-purple) 0%, #5a0052 50%, #2d0025 100%);
+}
+
+.fpl-gradient-horizontal {
+  background: linear-gradient(90deg, var(--fpl-purple) 0%, var(--fpl-green) 100%);
+}
+
+/* FPL Card style */
+.fpl-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border);
+}
+
+/* FPL Button styles */
+.fpl-button-primary {
+  background: var(--fpl-purple);
+  color: white;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fpl-button-primary:hover {
+  background: var(--fpl-purple-light);
+  transform: translateY(-1px);
+}
+
+.fpl-button-secondary {
+  background: var(--fpl-green);
+  color: var(--fpl-purple);
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fpl-button-secondary:hover {
+  background: var(--fpl-green-dark);
+  transform: translateY(-1px);
+}
+
+/* Position badge colors */
+.position-gkp { background: var(--goalkeeper); color: var(--fpl-purple); }
+.position-def { background: var(--defender); color: var(--fpl-purple); }
+.position-mid { background: var(--midfielder); color: var(--fpl-purple); }
+.position-fwd { background: var(--forward); color: white; }
+
+/* Points display */
+.points-positive { color: var(--fpl-green); }
+.points-negative { color: var(--fpl-pink); }
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fpl-purple);
+}
+
+/* Focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid var(--fpl-green);
+  outline-offset: 2px;
+}
+
+/* Pitch visualization - FPL style */
+.pitch-bg {
+  --pitch-dark: #1e6b3a;
+  --pitch-light: #2a8548;
+  --pitch-line: rgba(255, 255, 255, 0.25);
+
+  background:
+    /* Goal box at top */
+    linear-gradient(to bottom, var(--pitch-line) 0, var(--pitch-line) 2px, transparent 2px) no-repeat center 12%,
+    linear-gradient(to right, transparent 30%, var(--pitch-line) 30%, var(--pitch-line) calc(30% + 2px), transparent calc(30% + 2px), transparent 70%, var(--pitch-line) 70%, var(--pitch-line) calc(70% + 2px), transparent calc(70% + 2px)) no-repeat center 4%,
+    linear-gradient(to bottom, var(--pitch-line) 0, var(--pitch-line) 8%, transparent 8%) no-repeat 30% top,
+    linear-gradient(to bottom, var(--pitch-line) 0, var(--pitch-line) 8%, transparent 8%) no-repeat 70% top,
+    /* Grass stripes */
+    repeating-linear-gradient(
+      to bottom,
+      var(--pitch-dark) 0px,
+      var(--pitch-dark) 40px,
+      var(--pitch-light) 40px,
+      var(--pitch-light) 80px
+    );
+  background-size: 40% 2px, 100% 10%, 2px 100%, 2px 100%, 100% 100%;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Pitch border/outline */
+.pitch-bg::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px solid var(--pitch-line);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Center circle suggestion */
+.pitch-bg::after {
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  border: 2px solid var(--pitch-line);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Animation for live updates */
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 135, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 255, 135, 0); }
+}
+
+.live-pulse {
+  animation: pulse-green 2s infinite;
+}
+
+/* Stat cards */
+.stat-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--fpl-purple);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
