@@ -243,44 +243,14 @@ export default function TeamPage() {
         <div className="mb-8">
           {/* Desktop gameweek picker */}
           <div className="hidden md:flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold">
-                Gameweek {activeGw} Squad
-                {!isViewingCurrentGw && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    (Historical)
-                  </span>
-                )}
-              </h2>
-              <Link
-                href={`/team/${teamId}/transfers`}
-                className="px-3 py-1.5 bg-[var(--fpl-purple)] text-white text-sm font-medium rounded-lg hover:bg-[var(--fpl-purple-light)] transition-colors flex items-center gap-1.5"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                Transfers
-              </Link>
-              <Link
-                href={`/live?team=${teamId}`}
-                className="px-3 py-1.5 bg-[var(--fpl-green)] text-white text-sm font-medium rounded-lg hover:bg-[var(--fpl-green)]/80 transition-colors flex items-center gap-1.5"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+            <h2 className="text-lg font-semibold">
+              Gameweek {activeGw} Squad
+              {!isViewingCurrentGw && (
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  (Historical)
                 </span>
-                Live
-              </Link>
-              <Link
-                href={`/leagues?team=${teamId}`}
-                className="px-3 py-1.5 bg-[var(--fpl-cyan)] text-white text-sm font-medium rounded-lg hover:bg-[var(--fpl-cyan)]/80 transition-colors flex items-center gap-1.5"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Leagues
-              </Link>
-            </div>
+              )}
+            </h2>
             <GameweekPicker
               selectedGw={activeGw}
               currentGw={currentGw}
@@ -294,46 +264,14 @@ export default function TeamPage() {
 
           {/* Mobile header */}
           <div className="md:hidden mb-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                Gameweek {activeGw} Squad
-                {!isViewingCurrentGw && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    (Historical)
-                  </span>
-                )}
-              </h2>
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/team/${teamId}/transfers`}
-                  className="px-2.5 py-1 bg-[var(--fpl-purple)] text-white text-xs font-medium rounded-lg hover:bg-[var(--fpl-purple-light)] transition-colors flex items-center gap-1"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                  Transfers
-                </Link>
-                <Link
-                  href={`/live?team=${teamId}`}
-                  className="px-2.5 py-1 bg-[var(--fpl-green)] text-white text-xs font-medium rounded-lg hover:bg-[var(--fpl-green)]/80 transition-colors flex items-center gap-1"
-                >
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
-                  </span>
-                  Live
-                </Link>
-                <Link
-                  href={`/leagues?team=${teamId}`}
-                  className="px-2.5 py-1 bg-[var(--fpl-cyan)] text-white text-xs font-medium rounded-lg hover:bg-[var(--fpl-cyan)]/80 transition-colors flex items-center gap-1"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Leagues
-                </Link>
-              </div>
-            </div>
+            <h2 className="text-lg font-semibold">
+              Gameweek {activeGw} Squad
+              {!isViewingCurrentGw && (
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  (Historical)
+                </span>
+              )}
+            </h2>
           </div>
 
           {picksLoading ? (

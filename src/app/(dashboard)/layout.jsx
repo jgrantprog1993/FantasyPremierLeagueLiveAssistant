@@ -1,36 +1,51 @@
-import Link from 'next/link';
+'use client';
+
+import { Suspense } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import AppNav from '@/components/layout/AppNav';
+
+function DashboardLayoutContent({ children }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Get team ID from URL
+  const getTeamId = () => {
+    // Check URL params first
+    const teamParam = searchParams.get('team');
+    if (teamParam) return teamParam;
+
+    // Check pathname for /team/[teamId]
+    const teamMatch = pathname.match(/\/team\/(\d+)/);
+    if (teamMatch) return teamMatch[1];
+
+    return null;
+  };
+
+  const teamId = getTeamId();
+
+  return (
+    <div className="min-h-screen bg-[var(--background)]">
+      {/* App Navigation */}
+      <AppNav teamId={teamId} />
+
+      {/* Main Content - with padding for nav */}
+      <main className="md:ml-20 lg:ml-64 pb-20 md:pb-0 min-h-screen">
+        {children}
+      </main>
+    </div>
+  );
+}
 
 export default function DashboardLayout({ children }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Navigation Bar */}
-      <nav className="bg-[var(--fpl-purple)] text-white px-4 py-3">
-        <div className="container mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold hover:text-[var(--fpl-green)] transition-colors">
-            FPL Dashboard
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="text-sm hover:text-[var(--fpl-green)] transition-colors"
-            >
-              Home
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <div className="flex-1">
-        {children}
+    <Suspense fallback={
+      <div className="min-h-screen bg-[var(--background)]">
+        <main className="md:ml-20 lg:ml-64 pb-20 md:pb-0 min-h-screen">
+          {children}
+        </main>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-[var(--border)] py-4">
-        <div className="container mx-auto px-4 text-center text-sm text-[var(--muted)]">
-          FPL Dashboard - Not affiliated with the Premier League
-        </div>
-      </footer>
-    </div>
+    }>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
   );
 }
