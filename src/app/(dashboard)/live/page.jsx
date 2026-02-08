@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { useTeamEntry, useTeamPicks } from '@/hooks/useTeam';
 import { useBootstrap, createPlayerMap, createTeamMap, useFixtures } from '@/hooks/useBootstrap';
 import { useLiveData } from '@/hooks/useLiveData';
+import { useLeagueStandings, useLeagueTeamsPicks, calculateDifferentials } from '@/hooks/useLeague';
 import { getShirtUrl } from '@/lib/fpl/endpoints';
 import { cn } from '@/lib/utils/cn';
 
@@ -36,6 +37,7 @@ function LiveTrackerContent() {
 
   const [teamId, setTeamId] = useState(teamIdParam || '');
   const [submittedTeamId, setSubmittedTeamId] = useState(teamIdParam || '');
+  const [selectedLeagueId, setSelectedLeagueId] = useState(null);
 
   // Fetch bootstrap data
   const { data: bootstrap, isLoading: bootstrapLoading } = useBootstrap();
@@ -55,9 +57,38 @@ function LiveTrackerContent() {
   // Fetch fixtures
   const { data: fixtures } = useFixtures(currentGw);
 
+  // Get user's classic leagues
+  const userLeagues = useMemo(() => {
+    if (!team?.leagues?.classic) return [];
+    return team.leagues.classic.filter(l => l.league_type === 'x' || l.league_type === 's');
+  }, [team]);
+
+  // Fetch selected league standings
+  const { data: leagueData, isLoading: leagueLoading } = useLeagueStandings(selectedLeagueId);
+
+  // Get team IDs from league (excluding current user)
+  const leagueTeamIds = useMemo(() => {
+    if (!leagueData?.standings?.results) return [];
+    return leagueData.standings.results
+      .filter(r => r.entry !== parseInt(submittedTeamId))
+      .slice(0, 20) // Limit to top 20 to avoid too many API calls
+      .map(r => r.entry);
+  }, [leagueData, submittedTeamId]);
+
+  // Fetch all league teams' picks
+  const { data: leagueTeamsPicks, isLoading: leaguePicksLoading } = useLeagueTeamsPicks(
+    leagueTeamIds,
+    currentGw
+  );
+
   // Create lookup maps
   const playerMap = useMemo(() => createPlayerMap(bootstrap?.elements), [bootstrap?.elements]);
   const teamMap = useMemo(() => createTeamMap(bootstrap?.teams), [bootstrap?.teams]);
+
+  // Calculate differentials
+  const differentials = useMemo(() => {
+    return calculateDifferentials(picksData, leagueTeamsPicks, playerMap);
+  }, [picksData, leagueTeamsPicks, playerMap]);
 
   // Create fixture map by team
   const fixtureByTeam = useMemo(() => {
@@ -277,6 +308,60 @@ function LiveTrackerContent() {
               </Card>
             </div>
 
+            {/* League Ownership Section */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">
+                  GW{currentGw} League Ownership
+                </h2>
+                {userLeagues.length > 0 && (
+                  <select
+                    value={selectedLeagueId || ''}
+                    onChange={(e) => setSelectedLeagueId(e.target.value || null)}
+                    className="px-4 py-2 border-2 border-[var(--fpl-purple)] rounded-lg text-sm font-medium text-[var(--fpl-purple)] focus:outline-none focus:ring-2 focus:ring-[var(--fpl-purple)] bg-white cursor-pointer"
+                  >
+                    <option value="">Select a league</option>
+                    {userLeagues.map((league) => (
+                      <option key={league.id} value={league.id}>
+                        {league.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {!selectedLeagueId && (
+                <Card>
+                  <CardContent className="py-8 text-center text-gray-500">
+                    <p>Select a league above to see ownership in your mini-league</p>
+                    <p className="text-sm mt-1">See which of your players are differentials</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {selectedLeagueId && (leagueLoading || leaguePicksLoading) && (
+                <div className="animate-pulse space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-16 bg-[var(--border)] rounded"></div>
+                  ))}
+                </div>
+              )}
+
+              {selectedLeagueId && !leagueLoading && !leaguePicksLoading && differentials.length > 0 && (
+                <div className="space-y-2">
+                  {differentials.map((diff) => (
+                    <DifferentialRow
+                      key={diff.element}
+                      differential={diff}
+                      teamMap={teamMap}
+                      liveElementMap={liveElementMap}
+                      fixtureByTeam={fixtureByTeam}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Match Legend */}
             <div className="flex flex-wrap gap-4 mb-4 text-sm">
               <div className="flex items-center gap-2">
@@ -298,7 +383,7 @@ function LiveTrackerContent() {
               <h2 className="text-lg font-semibold mb-3">Starting XI</h2>
               <div className="space-y-2">
                 {starters.map((pick) => (
-                  <PlayerRow key={pick.element} pick={pick} />
+                  <PlayerRow key={pick.element} pick={pick} teamMap={teamMap} />
                 ))}
               </div>
             </div>
@@ -308,7 +393,7 @@ function LiveTrackerContent() {
               <h2 className="text-lg font-semibold mb-3 text-gray-500">Bench</h2>
               <div className="space-y-2 opacity-60">
                 {bench.map((pick) => (
-                  <PlayerRow key={pick.element} pick={pick} isBench />
+                  <PlayerRow key={pick.element} pick={pick} teamMap={teamMap} />
                 ))}
               </div>
             </div>
@@ -338,25 +423,34 @@ function LiveTrackerContent() {
 /**
  * Player row component
  */
-function PlayerRow({ pick, isBench = false }) {
-  const { player, team, fixture, points, basePoints, bonus, bps, provisionalBonus, isPlaying, isFinished } = pick;
+function PlayerRow({ pick, teamMap }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { player, team, fixture, points, basePoints, bonus, bps, provisionalBonus, isPlaying, isFinished, liveStats } = pick;
 
   if (!player) return null;
 
   const shirtUrl = team?.code ? getShirtUrl(team.code, player.element_type === 1) : null;
+
+  // Player availability status
+  const isInjured = player.status === 'i';
+  const isDoubtful = player.status === 'd';
+  const isSuspended = player.status === 's';
+  const isUnavailable = player.status === 'u' || player.status === 'n';
+  const hasIssue = isInjured || isDoubtful || isSuspended || isUnavailable;
 
   // Format fixture score
   const getFixtureDisplay = () => {
     if (!fixture) return null;
 
     const homeTeam = fixture.team_h === player.team;
-    const opponent = homeTeam ? fixture.team_a : fixture.team_h;
+    const opponentId = homeTeam ? fixture.team_a : fixture.team_h;
+    const opponentTeam = teamMap?.get(opponentId);
     const homeScore = fixture.team_h_score ?? 0;
     const awayScore = fixture.team_a_score ?? 0;
     const score = `${homeScore}-${awayScore}`;
 
     return {
-      opponent,
+      opponent: opponentTeam?.short_name || opponentId,
       score: fixture.started ? score : null,
       isHome: homeTeam,
     };
@@ -364,13 +458,28 @@ function PlayerRow({ pick, isBench = false }) {
 
   const fixtureInfo = getFixtureDisplay();
 
+  // Get stats breakdown for accordion
+  const statsBreakdown = getStatsBreakdown(liveStats, player.element_type);
+
+  // Determine ring color based on status
+  const getRingClass = () => {
+    if (isInjured || isUnavailable) return 'ring-2 ring-red-500';
+    if (isDoubtful) return 'ring-2 ring-yellow-500';
+    if (isSuspended) return 'ring-2 ring-orange-500';
+    if (isPlaying) return 'ring-2 ring-[var(--fpl-green)]';
+    return '';
+  };
+
   return (
     <Card className={cn(
       'overflow-hidden transition-all',
-      isPlaying && 'ring-2 ring-[var(--fpl-green)]',
-      isFinished && 'opacity-70'
+      getRingClass(),
+      isFinished && !hasIssue && 'opacity-70'
     )}>
-      <div className="flex items-center p-3 gap-3">
+      <div
+        className="flex items-center p-3 gap-3 cursor-pointer hover:bg-white/5 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         {/* Status indicator */}
         <div className={cn(
           'w-2 h-12 rounded-full flex-shrink-0',
@@ -394,7 +503,7 @@ function PlayerRow({ pick, isBench = false }) {
         {/* Player Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-800 truncate">
+            <span className="font-bold text-white truncate text-base">
               {player.web_name}
             </span>
             {pick.is_captain && (
@@ -408,7 +517,7 @@ function PlayerRow({ pick, isBench = false }) {
               </span>
             )}
           </div>
-          <div className="text-xs text-gray-500 flex items-center gap-2">
+          <div className="text-sm text-white/80 flex items-center gap-2">
             <span>{team?.short_name}</span>
             {fixtureInfo && (
               <>
@@ -456,7 +565,332 @@ function PlayerRow({ pick, isBench = false }) {
             <p className="text-[10px] text-gray-400">({basePoints}×2)</p>
           )}
         </div>
+
+        {/* Expand indicator */}
+        <div className="flex-shrink-0">
+          <svg
+            className={cn('w-5 h-5 text-gray-400 transition-transform', isExpanded && 'rotate-180')}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
+
+      {/* Accordion Content */}
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-2 border-t border-white/10">
+          {/* Player Status Alert */}
+          {hasIssue && player.news && (
+            <div className={cn(
+              'mb-3 px-3 py-2 rounded-lg flex items-center gap-2',
+              isInjured || isUnavailable ? 'bg-red-500/20 text-red-300' :
+              isSuspended ? 'bg-orange-500/20 text-orange-300' :
+              'bg-yellow-500/20 text-yellow-300'
+            )}>
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">{player.news}</span>
+              {player.chance_of_playing_next_round !== null && (
+                <span className="ml-auto text-xs font-bold">
+                  {player.chance_of_playing_next_round}% chance
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Stats Breakdown */}
+          {statsBreakdown.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {statsBreakdown.map((stat, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white/5 rounded px-3 py-2">
+                  <span className="text-sm text-white/70">{stat.label}</span>
+                  <span className={cn(
+                    'text-sm font-bold',
+                    stat.points > 0 ? 'text-[var(--fpl-green)]' : stat.points < 0 ? 'text-red-400' : 'text-white'
+                  )}>
+                    {stat.points > 0 ? '+' : ''}{stat.points}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* No stats message */}
+          {statsBreakdown.length === 0 && !hasIssue && (
+            <p className="text-sm text-white/50 text-center">No stats yet</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Get stats breakdown for points display
+ */
+function getStatsBreakdown(stats, elementType) {
+  if (!stats) return [];
+
+  const breakdown = [];
+
+  // Minutes played
+  if (stats.minutes > 0) {
+    const minPoints = stats.minutes >= 60 ? 2 : stats.minutes > 0 ? 1 : 0;
+    breakdown.push({ label: `${stats.minutes} mins`, points: minPoints });
+  }
+
+  // Goals (points vary by position)
+  if (stats.goals_scored > 0) {
+    const goalPoints = elementType === 1 || elementType === 2 ? 6 : elementType === 3 ? 5 : 4;
+    breakdown.push({ label: `${stats.goals_scored} goal${stats.goals_scored > 1 ? 's' : ''}`, points: stats.goals_scored * goalPoints });
+  }
+
+  // Assists
+  if (stats.assists > 0) {
+    breakdown.push({ label: `${stats.assists} assist${stats.assists > 1 ? 's' : ''}`, points: stats.assists * 3 });
+  }
+
+  // Clean sheet (GK/DEF only)
+  if (stats.clean_sheets > 0 && (elementType === 1 || elementType === 2)) {
+    breakdown.push({ label: 'Clean sheet', points: 4 });
+  } else if (stats.clean_sheets > 0 && elementType === 3) {
+    breakdown.push({ label: 'Clean sheet', points: 1 });
+  }
+
+  // Goals conceded (GK/DEF)
+  if (stats.goals_conceded >= 2 && (elementType === 1 || elementType === 2)) {
+    const gcPoints = -Math.floor(stats.goals_conceded / 2);
+    breakdown.push({ label: `${stats.goals_conceded} conceded`, points: gcPoints });
+  }
+
+  // Saves (GK only)
+  if (stats.saves > 0 && elementType === 1) {
+    const savePoints = Math.floor(stats.saves / 3);
+    if (savePoints > 0) {
+      breakdown.push({ label: `${stats.saves} saves`, points: savePoints });
+    }
+  }
+
+  // Penalties saved
+  if (stats.penalties_saved > 0) {
+    breakdown.push({ label: `${stats.penalties_saved} pen saved`, points: stats.penalties_saved * 5 });
+  }
+
+  // Penalties missed
+  if (stats.penalties_missed > 0) {
+    breakdown.push({ label: `${stats.penalties_missed} pen missed`, points: stats.penalties_missed * -2 });
+  }
+
+  // Own goals
+  if (stats.own_goals > 0) {
+    breakdown.push({ label: `${stats.own_goals} own goal${stats.own_goals > 1 ? 's' : ''}`, points: stats.own_goals * -2 });
+  }
+
+  // Yellow cards
+  if (stats.yellow_cards > 0) {
+    breakdown.push({ label: 'Yellow card', points: -1 });
+  }
+
+  // Red cards
+  if (stats.red_cards > 0) {
+    breakdown.push({ label: 'Red card', points: -3 });
+  }
+
+  // Bonus
+  if (stats.bonus > 0) {
+    breakdown.push({ label: 'Bonus', points: stats.bonus });
+  }
+
+  return breakdown;
+}
+
+/**
+ * Differential player row component
+ */
+function DifferentialRow({ differential, teamMap, liveElementMap, fixtureByTeam }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { player, leagueOwnership, totalTeams, isUnique, isDifferential } = differential;
+
+  if (!player) return null;
+
+  const team = teamMap.get(player.team);
+  const liveElement = liveElementMap.get(differential.element);
+  const fixture = fixtureByTeam.get(player.team);
+  const shirtUrl = team?.code ? getShirtUrl(team.code, player.element_type === 1) : null;
+
+  const points = liveElement?.stats?.total_points ?? 0;
+  const isPlaying = fixture?.started && !fixture?.finished;
+  const isFinished = fixture?.finished || fixture?.finished_provisional;
+  const liveStats = liveElement?.stats;
+
+  // Player availability status
+  const isInjured = player.status === 'i';
+  const isDoubtful = player.status === 'd';
+  const isSuspended = player.status === 's';
+  const isUnavailable = player.status === 'u' || player.status === 'n';
+  const hasIssue = isInjured || isDoubtful || isSuspended || isUnavailable;
+
+  // Get stats breakdown for accordion
+  const statsBreakdown = getStatsBreakdown(liveStats, player.element_type);
+
+  // Determine badge color based on ownership
+  const getBadgeStyle = () => {
+    if (isUnique) return 'bg-[var(--fpl-pink)] text-white';
+    if (isDifferential) return 'bg-[var(--fpl-cyan)] text-white';
+    return 'bg-gray-200 text-gray-700';
+  };
+
+  const getBorderStyle = () => {
+    if (isUnique) return 'border-l-[var(--fpl-pink)]';
+    if (isDifferential) return 'border-l-[var(--fpl-cyan)]';
+    return 'border-l-gray-300';
+  };
+
+  // Determine ring color based on status
+  const getRingClass = () => {
+    if (isInjured || isUnavailable) return 'ring-2 ring-red-500';
+    if (isDoubtful) return 'ring-2 ring-yellow-500';
+    if (isSuspended) return 'ring-2 ring-orange-500';
+    return '';
+  };
+
+  return (
+    <Card className={cn(
+      'overflow-hidden border-l-4',
+      getBorderStyle(),
+      getRingClass()
+    )}>
+      <div
+        className="flex items-center p-3 gap-3 cursor-pointer hover:bg-white/5 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {/* Ownership badge */}
+        <div className="flex-shrink-0 min-w-[70px]">
+          {isUnique ? (
+            <span className={cn('px-2 py-1 text-xs font-bold rounded', getBadgeStyle())}>
+              ONLY YOU
+            </span>
+          ) : (
+            <span className={cn('px-2 py-1 text-xs font-bold rounded', getBadgeStyle())}>
+              {leagueOwnership}/{totalTeams}
+            </span>
+          )}
+        </div>
+
+        {/* Jersey */}
+        <div className="w-10 h-12 relative flex-shrink-0">
+          {shirtUrl && (
+            <Image
+              src={shirtUrl}
+              alt={team?.name ?? ''}
+              width={40}
+              height={48}
+              className="object-contain"
+              unoptimized
+            />
+          )}
+        </div>
+
+        {/* Player Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white truncate text-base">
+              {player.web_name}
+            </span>
+            {differential.is_captain && (
+              <span className="px-1.5 py-0.5 bg-[var(--fpl-purple)] text-white text-xs font-bold rounded">
+                C
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-white/80">
+            {team?.short_name} • {player.selected_by_percent}% overall ownership
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className={cn(
+          'w-2 h-10 rounded-full flex-shrink-0',
+          isPlaying ? 'bg-[var(--fpl-green)] animate-pulse' : isFinished ? 'bg-gray-400' : 'bg-gray-200'
+        )} />
+
+        {/* Points */}
+        <div className={cn(
+          'text-center px-3 py-2 rounded-lg flex-shrink-0 min-w-[50px]',
+          points > 0 ? 'bg-[var(--fpl-green)]/10' : 'bg-gray-100'
+        )}>
+          <p className="text-xs text-gray-400">Pts</p>
+          <p className={cn(
+            'text-lg font-bold',
+            points > 0 ? 'text-[var(--fpl-green)]' : 'text-gray-600'
+          )}>
+            {points}
+          </p>
+        </div>
+
+        {/* Expand indicator */}
+        <div className="flex-shrink-0">
+          <svg
+            className={cn('w-5 h-5 text-gray-400 transition-transform', isExpanded && 'rotate-180')}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Accordion Content */}
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-2 border-t border-white/10">
+          {/* Player Status Alert */}
+          {hasIssue && player.news && (
+            <div className={cn(
+              'mb-3 px-3 py-2 rounded-lg flex items-center gap-2',
+              isInjured || isUnavailable ? 'bg-red-500/20 text-red-300' :
+              isSuspended ? 'bg-orange-500/20 text-orange-300' :
+              'bg-yellow-500/20 text-yellow-300'
+            )}>
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">{player.news}</span>
+              {player.chance_of_playing_next_round !== null && (
+                <span className="ml-auto text-xs font-bold">
+                  {player.chance_of_playing_next_round}% chance
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Stats Breakdown */}
+          {statsBreakdown.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {statsBreakdown.map((stat, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white/5 rounded px-3 py-2">
+                  <span className="text-sm text-white/70">{stat.label}</span>
+                  <span className={cn(
+                    'text-sm font-bold',
+                    stat.points > 0 ? 'text-[var(--fpl-green)]' : stat.points < 0 ? 'text-red-400' : 'text-white'
+                  )}>
+                    {stat.points > 0 ? '+' : ''}{stat.points}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* No stats message */}
+          {statsBreakdown.length === 0 && !hasIssue && (
+            <p className="text-sm text-white/50 text-center">No stats yet</p>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
