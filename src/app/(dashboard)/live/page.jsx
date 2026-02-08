@@ -57,10 +57,10 @@ function LiveTrackerContent() {
   // Fetch fixtures
   const { data: fixtures } = useFixtures(currentGw);
 
-  // Get user's classic leagues
+  // Get user's private classic leagues only (exclude public leagues like "All Ireland")
   const userLeagues = useMemo(() => {
     if (!team?.leagues?.classic) return [];
-    return team.leagues.classic.filter(l => l.league_type === 'x' || l.league_type === 's');
+    return team.leagues.classic.filter(l => l.league_type === 'x');
   }, [team]);
 
   // Fetch selected league standings
@@ -71,7 +71,6 @@ function LiveTrackerContent() {
     if (!leagueData?.standings?.results) return [];
     return leagueData.standings.results
       .filter(r => r.entry !== parseInt(submittedTeamId))
-      .slice(0, 20) // Limit to top 20 to avoid too many API calls
       .map(r => r.entry);
   }, [leagueData, submittedTeamId]);
 
@@ -89,6 +88,64 @@ function LiveTrackerContent() {
   const differentials = useMemo(() => {
     return calculateDifferentials(picksData, leagueTeamsPicks, playerMap);
   }, [picksData, leagueTeamsPicks, playerMap]);
+
+  // Calculate live league standings
+  const liveStandings = useMemo(() => {
+    if (!leagueData?.standings?.results || !liveData?.elements) return [];
+
+    const livePointsMap = new Map(liveData.elements.map(e => [e.id, e.stats?.total_points ?? 0]));
+
+    // Calculate live points for each team in the standings
+    const standings = leagueData.standings.results.map(entry => {
+      // Find this team's picks in our fetched data
+      const teamPicks = leagueTeamsPicks?.find(tp => tp?.entry === entry.entry);
+
+      let liveGwPoints = entry.event_total; // Default to API value
+
+      if (teamPicks?.picks) {
+        // Calculate live points from picks
+        liveGwPoints = teamPicks.picks
+          .filter(p => p.position <= 11)
+          .reduce((sum, pick) => {
+            const points = livePointsMap.get(pick.element) ?? 0;
+            const multiplier = pick.is_captain ? (pick.multiplier ?? 2) : 1;
+            return sum + (points * multiplier);
+          }, 0);
+      }
+
+      // For current user, use our calculated points
+      if (entry.entry === parseInt(submittedTeamId) && picksData?.picks) {
+        liveGwPoints = picksData.picks
+          .filter(p => p.position <= 11)
+          .reduce((sum, pick) => {
+            const points = livePointsMap.get(pick.element) ?? 0;
+            const multiplier = pick.is_captain ? (pick.multiplier ?? 2) : 1;
+            return sum + (points * multiplier);
+          }, 0);
+      }
+
+      // Calculate live total (previous total + live GW points)
+      const previousTotal = entry.total - entry.event_total;
+      const liveTotal = previousTotal + liveGwPoints;
+
+      return {
+        ...entry,
+        liveGwPoints,
+        liveTotal,
+        isCurrentUser: entry.entry === parseInt(submittedTeamId),
+      };
+    });
+
+    // Sort by live total points (descending)
+    standings.sort((a, b) => b.liveTotal - a.liveTotal);
+
+    // Add live rank
+    return standings.map((entry, index) => ({
+      ...entry,
+      liveRank: index + 1,
+      rankChange: entry.rank - (index + 1),
+    }));
+  }, [leagueData, liveData, leagueTeamsPicks, picksData, submittedTeamId]);
 
   // Create fixture map by team
   const fixtureByTeam = useMemo(() => {
@@ -361,6 +418,79 @@ function LiveTrackerContent() {
                 </div>
               )}
             </div>
+
+            {/* Live League Standings */}
+            {selectedLeagueId && !leagueLoading && liveStandings.length > 0 && (
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold mb-4">
+                  Live Standings - {leagueData?.league?.name}
+                </h2>
+                <Card>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-3 text-xs text-white/60 font-medium">Live</th>
+                          <th className="text-left py-3 px-2 text-xs text-white/60 font-medium">Team</th>
+                          <th className="text-right py-3 px-2 text-xs text-white/60 font-medium">GW</th>
+                          <th className="text-right py-3 px-3 text-xs text-white/60 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {liveStandings.map((entry) => (
+                          <tr
+                            key={entry.id}
+                            className={cn(
+                              'border-b border-white/5',
+                              entry.isCurrentUser && 'bg-[var(--fpl-purple)]/20'
+                            )}
+                          >
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className={cn(
+                                  'font-bold text-sm',
+                                  entry.liveRank <= 3 ? 'text-[var(--fpl-green)]' : 'text-white'
+                                )}>
+                                  {entry.liveRank}
+                                </span>
+                                {entry.rankChange !== 0 && (
+                                  <span className={cn(
+                                    'text-xs',
+                                    entry.rankChange > 0 ? 'text-green-400' : 'text-red-400'
+                                  )}>
+                                    {entry.rankChange > 0 ? `▲${entry.rankChange}` : `▼${Math.abs(entry.rankChange)}`}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <p className={cn(
+                                'font-medium text-sm truncate max-w-[150px]',
+                                entry.isCurrentUser ? 'text-[var(--fpl-green)]' : 'text-white'
+                              )}>
+                                {entry.entry_name}
+                              </p>
+                              <p className="text-xs text-white/50">{entry.player_name}</p>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <span className={cn(
+                                'text-sm font-medium',
+                                entry.liveGwPoints > entry.event_total ? 'text-[var(--fpl-green)]' : 'text-white/80'
+                              )}>
+                                {entry.liveGwPoints}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="font-bold text-white">{entry.liveTotal}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+            )}
 
             {/* Match Legend */}
             <div className="flex flex-wrap gap-4 mb-4 text-sm">
