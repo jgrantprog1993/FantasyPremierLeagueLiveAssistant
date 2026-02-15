@@ -1,48 +1,70 @@
 import { create } from 'zustand';
 
-/**
- * Authentication store using Zustand
- * Manages user authentication state
- */
 export const useAuthStore = create((set) => ({
   isAuthenticated: false,
   isGuest: false,
+  userId: null,
   teamId: null,
   userName: null,
+  isCheckingSession: true,
 
-  /**
-   * Set authenticated user state
-   * @param {number} teamId - The FPL team ID
-   * @param {string} userName - The user's display name
-   */
-  setAuthenticated: (teamId, userName) =>
+  setAuthenticated: (teamId, userName, userId = null) =>
     set({
       isAuthenticated: true,
       isGuest: false,
+      userId,
       teamId,
       userName,
+      isCheckingSession: false,
     }),
 
-  /**
-   * Set guest user state
-   * @param {number} teamId - The FPL team ID being viewed
-   */
   setGuest: (teamId) =>
     set({
       isAuthenticated: false,
       isGuest: true,
+      userId: null,
       teamId,
       userName: null,
+      isCheckingSession: false,
     }),
 
-  /**
-   * Clear auth state on logout
-   */
-  logout: () =>
+  logout: async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     set({
       isAuthenticated: false,
       isGuest: false,
+      userId: null,
       teamId: null,
       userName: null,
-    }),
+      isCheckingSession: false,
+    });
+  },
+
+  checkSession: async () => {
+    try {
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
+
+      if (data.authenticated && data.user) {
+        set({
+          isAuthenticated: true,
+          isGuest: false,
+          userId: data.user.userId,
+          teamId: data.user.teamId,
+          userName: data.user.name,
+          isCheckingSession: false,
+        });
+        return data.user;
+      }
+    } catch (error) {
+      console.error('Session check error:', error);
+    }
+
+    set({ isCheckingSession: false });
+    return null;
+  },
 }));

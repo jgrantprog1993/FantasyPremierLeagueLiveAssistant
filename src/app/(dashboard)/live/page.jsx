@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -11,6 +11,7 @@ import { useLiveData } from '@/hooks/useLiveData';
 import { useLeagueStandings, useLeagueTeamsPicks, calculateDifferentials } from '@/hooks/useLeague';
 import { getShirtUrl } from '@/lib/fpl/endpoints';
 import { cn } from '@/lib/utils/cn';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function LiveTrackerPage() {
   return (
@@ -34,10 +35,23 @@ function LiveTrackerSkeleton() {
 function LiveTrackerContent() {
   const searchParams = useSearchParams();
   const teamIdParam = searchParams.get('team');
+  const authTeamId = useAuthStore((state) => state.teamId);
+  const setGuest = useAuthStore((state) => state.setGuest);
 
-  const [teamId, setTeamId] = useState(teamIdParam || '');
-  const [submittedTeamId, setSubmittedTeamId] = useState(teamIdParam || '');
+  // Use authStore teamId if available, otherwise URL param
+  const initialTeamId = teamIdParam || (authTeamId ? String(authTeamId) : '');
+
+  const [teamId, setTeamId] = useState(initialTeamId);
+  const [submittedTeamId, setSubmittedTeamId] = useState(initialTeamId);
   const [selectedLeagueId, setSelectedLeagueId] = useState(null);
+
+  // Sync with authStore when it updates
+  useEffect(() => {
+    if (authTeamId && !submittedTeamId) {
+      setTeamId(String(authTeamId));
+      setSubmittedTeamId(String(authTeamId));
+    }
+  }, [authTeamId]);
 
   // Fetch bootstrap data
   const { data: bootstrap, isLoading: bootstrapLoading } = useBootstrap();
@@ -233,7 +247,11 @@ function LiveTrackerContent() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setSubmittedTeamId(teamId);
+    const id = parseInt(teamId, 10);
+    if (!isNaN(id) && id > 0) {
+      setSubmittedTeamId(teamId);
+      setGuest(id); // Persist to authStore
+    }
   };
 
   const isLoading = bootstrapLoading;

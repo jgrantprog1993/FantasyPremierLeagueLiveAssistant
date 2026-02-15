@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { useAuthStore } from '@/stores/authStore';
 
 /**
  * Guest mode form - Enter Team ID to view public data
  */
 export function GuestForm() {
   const router = useRouter();
+  const setGuest = useAuthStore((state) => state.setGuest);
   const [teamId, setTeamId] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,7 +20,6 @@ export function GuestForm() {
     e.preventDefault();
     setError('');
 
-    // Validate Team ID
     const id = parseInt(teamId.trim(), 10);
     if (isNaN(id) || id <= 0) {
       setError('Please enter a valid Team ID');
@@ -28,7 +29,6 @@ export function GuestForm() {
     setIsLoading(true);
 
     try {
-      // Verify the team exists by calling our API
       const response = await fetch(`/api/fpl/entry/${id}`);
 
       if (!response.ok) {
@@ -38,7 +38,10 @@ export function GuestForm() {
         throw new Error('Failed to verify team. Please try again.');
       }
 
-      // Team exists, redirect to team page
+      // Save team ID to store for persistence across navigation
+      setGuest(id);
+
+      // Redirect to team page
       router.push(`/team/${id}`);
     } catch (err) {
       setError(err.message);

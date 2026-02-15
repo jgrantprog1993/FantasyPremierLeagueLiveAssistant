@@ -2,26 +2,22 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 
-/**
- * Login form for FPL authentication
- */
 export function LoginForm() {
   const router = useRouter();
   const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [hint, setHint] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    setHint('');
     setIsLoading(true);
 
     try {
@@ -35,16 +31,10 @@ export function LoginForm() {
 
       if (!response.ok) {
         setError(data.error || 'Login failed');
-        if (data.hint) {
-          setHint(data.hint);
-        }
         return;
       }
 
-      // Update auth store
       setAuthenticated(data.teamId, data.name);
-
-      // Redirect to team page
       router.push(`/team/${data.teamId}`);
     } catch (err) {
       setError('Connection error. Please try again.');
@@ -57,7 +47,7 @@ export function LoginForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
-          FPL Email
+          Email
         </label>
         <Input
           id="email"
@@ -80,7 +70,7 @@ export function LoginForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Your FPL password"
+          placeholder="Your password"
           disabled={isLoading}
           autoComplete="current-password"
           required
@@ -90,9 +80,6 @@ export function LoginForm() {
       {error && (
         <div className="p-3 rounded-lg bg-[var(--fpl-pink)]/10 border border-[var(--fpl-pink)]/20">
           <p className="text-sm text-[var(--fpl-pink)] font-medium">{error}</p>
-          {hint && (
-            <p className="text-xs text-[var(--muted)] mt-1">{hint}</p>
-          )}
         </div>
       )}
 
@@ -103,18 +90,15 @@ export function LoginForm() {
         loading={isLoading}
         disabled={!email || !password}
       >
-        Sign in with FPL
+        Sign In
       </Button>
 
-      <div className="text-xs text-gray-500 space-y-1">
-        <p>
-          Your credentials are sent directly to the FPL server.
-          We never store your password.
-        </p>
-        <p className="text-gray-700 font-medium">
-          Note: If login fails, you can still use Quick View with your Team ID.
-        </p>
-      </div>
+      <p className="text-sm text-center text-gray-600">
+        Don&apos;t have an account?{' '}
+        <Link href="/register" className="text-[var(--fpl-purple)] hover:underline font-medium">
+          Create one
+        </Link>
+      </p>
     </form>
   );
 }

@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { cn } from '@/lib/utils/cn';
+import { useAuthStore } from '@/stores/authStore';
 
 const navItems = [
   {
@@ -18,7 +19,7 @@ const navItems = [
   {
     label: 'Team',
     href: '/team',
-    requiresTeam: true,
+    requiresAuth: true,
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -28,7 +29,7 @@ const navItems = [
   {
     label: 'Transfers',
     href: '/transfers',
-    requiresTeam: true,
+    requiresAuth: true,
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -43,11 +44,12 @@ const navItems = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
     ),
-    badge: true, // Show live indicator
+    badge: true,
   },
   {
     label: 'Leagues',
     href: '/leagues',
+    requiresAuth: true,
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -56,8 +58,15 @@ const navItems = [
   },
 ];
 
-function AppNavContent({ teamId }) {
+function AppNavContent({ teamId: urlTeamId }) {
   const pathname = usePathname();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authTeamId = useAuthStore((state) => state.teamId);
+  const userName = useAuthStore((state) => state.userName);
+  const logout = useAuthStore((state) => state.logout);
+
+  const teamId = isAuthenticated ? authTeamId : urlTeamId;
+  const visibleNavItems = navItems.filter(item => !item.requiresAuth || isAuthenticated);
 
   const getHref = (item) => {
     if (item.href === '/') return '/';
@@ -66,8 +75,7 @@ function AppNavContent({ teamId }) {
       if (item.href === '/transfers') return `/team/${teamId}/transfers`;
       return `${item.href}?team=${teamId}`;
     }
-    // If no teamId and item requires team, go to home
-    if (item.requiresTeam) return '/';
+    if (item.requiresAuth) return '/login';
     return item.href;
   };
 
@@ -78,12 +86,17 @@ function AppNavContent({ teamId }) {
     return pathname.startsWith(item.href);
   };
 
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
+  };
+
   return (
     <>
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[var(--fpl-purple)] border-t border-white/10 z-50 safe-area-bottom">
         <div className="flex justify-around items-center h-16 px-2">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item);
             return (
               <Link
@@ -125,7 +138,7 @@ function AppNavContent({ teamId }) {
 
         {/* Nav Items */}
         <nav className="flex-1 py-4">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item);
             return (
               <Link
@@ -154,52 +167,70 @@ function AppNavContent({ teamId }) {
           })}
         </nav>
 
-        {/* Team ID Section */}
-        <Link
-          href="/?change=true"
-          className="block p-4 lg:p-6 border-t border-white/10 hover:bg-white/5 transition-colors group"
-        >
-          {teamId ? (
+        {/* User Section */}
+        <div className="border-t border-white/10">
+          {isAuthenticated ? (
             <>
-              <div className="hidden lg:block">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wide">Team ID</p>
-                    <p className="text-white font-mono text-lg">{teamId}</p>
+              <Link
+                href={`/team/${teamId}`}
+                className="block p-4 lg:p-6 hover:bg-white/5 transition-colors group"
+              >
+                <div className="hidden lg:block">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[var(--fpl-green)] rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold">
+                        {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">
+                        {userName || 'My Team'}
+                      </p>
+                      <p className="text-xs text-white/40">ID: {teamId}</p>
+                    </div>
                   </div>
-                  <svg className="w-5 h-5 text-white/40 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
                 </div>
-                <p className="text-xs text-white/30 mt-1 group-hover:text-white/60">Click to change</p>
-              </div>
-              <div className="lg:hidden flex items-center justify-center gap-2">
-                <span className="text-xs text-white/60 font-mono">{teamId}</span>
-                <svg className="w-3 h-3 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <div className="lg:hidden flex flex-col items-center">
+                  <div className="w-8 h-8 bg-[var(--fpl-green)] rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-white/60 mt-1 truncate max-w-full">
+                    {teamId}
+                  </span>
+                </div>
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="w-full p-4 lg:px-6 lg:py-4 flex items-center gap-3 text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-              </div>
+                <span className="hidden lg:block font-medium">Sign Out</span>
+              </button>
             </>
           ) : (
-            <>
-              <div className="hidden lg:flex items-center gap-3">
-                <svg className="w-6 h-6 text-[var(--fpl-green)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            <div className="p-4 lg:p-6">
+              <Link
+                href="/login"
+                className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-[var(--fpl-green)] text-[var(--fpl-purple)] font-semibold rounded-lg hover:bg-[#00cc6a] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                 </svg>
-                <div>
-                  <p className="text-white font-medium">Enter Team ID</p>
-                  <p className="text-xs text-white/40">Track your FPL team</p>
-                </div>
-              </div>
-              <div className="lg:hidden flex flex-col items-center">
-                <svg className="w-5 h-5 text-[var(--fpl-green)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                <span className="text-[10px] text-white/60 mt-1">Add Team</span>
-              </div>
-            </>
+                <span className="hidden lg:block">Sign In</span>
+              </Link>
+              <Link
+                href="/guest"
+                className="hidden lg:block text-center text-xs text-white/40 hover:text-white/60 mt-3 transition-colors"
+              >
+                or continue as guest
+              </Link>
+            </div>
           )}
-        </Link>
+        </div>
       </aside>
     </>
   );
@@ -213,19 +244,15 @@ export default function AppNav({ teamId }) {
   );
 }
 
-// Hook to get team ID from URL or localStorage
 export function useTeamId() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  // Check URL params first
   const teamParam = searchParams.get('team');
   if (teamParam) return teamParam;
 
-  // Check pathname for /team/[teamId]
   const teamMatch = pathname.match(/\/team\/(\d+)/);
   if (teamMatch) return teamMatch[1];
 
-  // Could also check localStorage here if needed
   return null;
 }
