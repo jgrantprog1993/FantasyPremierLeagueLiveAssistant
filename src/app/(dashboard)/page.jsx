@@ -2,11 +2,13 @@
 
 import { useState, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/Card';
-import { useBootstrap, createTeamMap, useFixtures } from '@/hooks/useBootstrap';
+import { useBootstrap, createTeamMap, createPlayerMap, useFixtures } from '@/hooks/useBootstrap';
 import { useLiveData } from '@/hooks/useLiveData';
 import { cn } from '@/lib/utils/cn';
+import { getShirtUrl } from '@/lib/fpl/endpoints';
 
 export default function FixturesPage() {
   return (
@@ -58,6 +60,9 @@ function FixturesContent() {
 
   // Create team map
   const teamMap = useMemo(() => createTeamMap(bootstrap?.teams), [bootstrap?.teams]);
+
+  // Create player map for fixture stats
+  const playerMap = useMemo(() => createPlayerMap(bootstrap?.elements), [bootstrap?.elements]);
 
   // Categorize fixtures
   const { liveFixtures, completedFixtures, upcomingFixtures } = useMemo(() => {
@@ -177,7 +182,7 @@ function FixturesContent() {
           <Card>
             <CardContent className="py-4 text-center">
               <p className="text-xs text-[var(--muted)] uppercase">GW Average</p>
-              <p className="text-3xl font-bold text-[var(--fpl-purple)]">
+              <p className="text-3xl font-bold text-white">
                 {currentGw?.average_entry_score || '-'}
               </p>
             </CardContent>
@@ -191,9 +196,9 @@ function FixturesContent() {
               <div className="w-2 h-2 rounded-full bg-[var(--fpl-green)] animate-pulse"></div>
               <h2 className="text-lg font-semibold">Live Now</h2>
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-3">
               {liveFixtures.map((fixture) => (
-                <FixtureCard key={fixture.id} fixture={fixture} teamMap={teamMap} isLive />
+                <FixtureCard key={fixture.id} fixture={fixture} teamMap={teamMap} playerMap={playerMap} isLive />
               ))}
             </div>
           </div>
@@ -203,9 +208,9 @@ function FixturesContent() {
         {completedFixtures.length > 0 && (
           <div className="mb-8">
             <h2 className="text-lg font-semibold mb-4">Completed</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-3">
               {completedFixtures.map((fixture) => (
-                <FixtureCard key={fixture.id} fixture={fixture} teamMap={teamMap} />
+                <FixtureCard key={fixture.id} fixture={fixture} teamMap={teamMap} playerMap={playerMap} />
               ))}
             </div>
           </div>
@@ -215,9 +220,9 @@ function FixturesContent() {
         {upcomingFixtures.length > 0 && (
           <div className="mb-8">
             <h2 className="text-lg font-semibold mb-4">Upcoming</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-3">
               {upcomingFixtures.map((fixture) => (
-                <FixtureCard key={fixture.id} fixture={fixture} teamMap={teamMap} isUpcoming />
+                <FixtureCard key={fixture.id} fixture={fixture} teamMap={teamMap} playerMap={playerMap} isUpcoming />
               ))}
             </div>
           </div>
@@ -229,29 +234,42 @@ function FixturesContent() {
             <h2 className="text-lg font-semibold mb-4">Top Performers This GW</h2>
             <Card>
               <div className="divide-y divide-white/10">
-                {topPerformers.map((performer, idx) => (
-                  <div key={performer.id} className="flex items-center p-4 gap-4">
-                    <span className={cn(
-                      'w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm',
-                      idx === 0 ? 'bg-yellow-500 text-white' :
-                      idx === 1 ? 'bg-gray-300 text-gray-700' :
-                      idx === 2 ? 'bg-amber-600 text-white' :
-                      'bg-white/10 text-white'
-                    )}>
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-white truncate">{performer.player?.web_name}</p>
-                      <p className="text-sm text-white/60">{performer.team?.short_name}</p>
+                {topPerformers.map((performer, idx) => {
+                  const isGoalkeeper = performer.player?.element_type === 1;
+                  return (
+                    <div key={performer.id} className="flex items-center p-3 gap-3">
+                      <span className={cn(
+                        'w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs',
+                        idx === 0 ? 'bg-yellow-500 text-white' :
+                        idx === 1 ? 'bg-gray-300 text-gray-700' :
+                        idx === 2 ? 'bg-amber-600 text-white' :
+                        'bg-white/10 text-white'
+                      )}>
+                        {idx + 1}
+                      </span>
+                      <div className="w-8 h-10 flex-shrink-0">
+                        <Image
+                          src={getShirtUrl(performer.team?.code, isGoalkeeper)}
+                          alt={performer.team?.short_name || ''}
+                          width={32}
+                          height={40}
+                          className="object-contain"
+                          unoptimized
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-white truncate">{performer.player?.web_name}</p>
+                        <p className="text-xs text-white/60">{performer.team?.short_name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-[var(--fpl-green)]">
+                          {performer.stats?.total_points}
+                        </p>
+                        <p className="text-xs text-white/50">pts</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-[var(--fpl-green)]">
-                        {performer.stats?.total_points}
-                      </p>
-                      <p className="text-xs text-white/50">points</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           </div>
@@ -268,9 +286,21 @@ function FixturesContent() {
                   <span className="text-white/60">Average Score</span>
                   <span className="font-medium text-white">{currentGw?.average_entry_score || '-'}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-white/60">Highest Score</span>
-                  <span className="font-medium text-[var(--fpl-green)]">{currentGw?.highest_score || '-'}</span>
+                  {currentGw?.highest_scoring_entry ? (
+                    <Link
+                      href={`/team/${currentGw.highest_scoring_entry}`}
+                      className="font-medium text-[var(--fpl-green)] hover:underline flex items-center gap-1"
+                    >
+                      {currentGw?.highest_score || '-'}
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-[var(--fpl-green)]">{currentGw?.highest_score || '-'}</span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-white/60">Most Captained</span>
@@ -323,7 +353,7 @@ function FixturesContent() {
             <CardContent className="py-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                 <div>
-                  <p className="text-3xl font-bold text-[var(--fpl-purple)]">
+                  <p className="text-3xl font-bold text-white">
                     {bootstrap?.total_players?.toLocaleString() || '11M+'}
                   </p>
                   <p className="text-sm text-white/60">Managers</p>
@@ -355,7 +385,8 @@ function FixturesContent() {
   );
 }
 
-function FixtureCard({ fixture, teamMap, isLive, isUpcoming }) {
+function FixtureCard({ fixture, teamMap, playerMap, isLive, isUpcoming }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const homeTeam = teamMap.get(fixture.team_h);
   const awayTeam = teamMap.get(fixture.team_a);
 
@@ -363,87 +394,325 @@ function FixtureCard({ fixture, teamMap, isLive, isUpcoming }) {
   const timeString = kickoffTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateString = kickoffTime.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
+  // Parse fixture stats
+  const stats = fixture.stats || [];
+  const getStatByIdentifier = (identifier) => stats.find(s => s.identifier === identifier);
+
+  const goals = getStatByIdentifier('goals_scored');
+  const assists = getStatByIdentifier('assists');
+  const ownGoals = getStatByIdentifier('own_goals');
+  const penaltiesSaved = getStatByIdentifier('penalties_saved');
+  const penaltiesMissed = getStatByIdentifier('penalties_missed');
+  const yellowCards = getStatByIdentifier('yellow_cards');
+  const redCards = getStatByIdentifier('red_cards');
+  const saves = getStatByIdentifier('saves');
+  const bonus = getStatByIdentifier('bonus');
+  const bps = getStatByIdentifier('bps');
+
+  const hasStats = fixture.started && (goals?.h?.length > 0 || goals?.a?.length > 0 || bonus?.h?.length > 0);
+  const canExpand = !isUpcoming && hasStats;
+
+  const handleClick = () => {
+    if (canExpand) {
+      setIsExpanded(!isExpanded);
+    }
+  };
+
+  // Helper to render player stat
+  const renderPlayerStat = (statData, side, icon, label, colorClass = 'text-white') => {
+    const players = statData?.[side] || [];
+    if (players.length === 0) return null;
+
+    return players.map((p, idx) => {
+      const player = playerMap?.get(p.element);
+      return (
+        <div key={`${p.element}-${idx}`} className="flex items-center gap-2 text-sm">
+          <span className={colorClass}>{icon}</span>
+          <span className="text-white/80">{player?.web_name || `Player ${p.element}`}</span>
+          {p.value > 1 && <span className="text-white/50">x{p.value}</span>}
+        </div>
+      );
+    });
+  };
+
   return (
     <Card className={cn(
-      'overflow-hidden',
-      isLive && 'ring-2 ring-[var(--fpl-green)]'
+      'overflow-hidden transition-all',
+      isLive && 'ring-2 ring-[var(--fpl-green)]',
+      canExpand && 'cursor-pointer hover:bg-white/5'
     )}>
-      <CardContent className="py-4">
-        {/* Live indicator */}
-        {isLive && (
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 rounded-full bg-[var(--fpl-green)] animate-pulse"></div>
-            <span className="text-xs font-medium text-[var(--fpl-green)] uppercase">Live</span>
-            <span className="text-xs text-white/50 ml-auto">{fixture.minutes}'</span>
-          </div>
-        )}
+      <div onClick={handleClick}>
+        <CardContent className="py-2 px-3">
+          {/* Teams and Score */}
+          <div className="flex items-center justify-between">
+            {/* Home Team */}
+            <div className="flex items-center gap-2 flex-1">
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                {homeTeam?.code && (
+                  <Image
+                    src={`https://resources.premierleague.com/premierleague/badges/25/t${homeTeam.code}.png`}
+                    alt={homeTeam.name}
+                    width={18}
+                    height={18}
+                    unoptimized
+                  />
+                )}
+              </div>
+              <p className="font-medium text-white text-sm">{homeTeam?.short_name}</p>
+            </div>
 
-        {/* Teams and Score */}
-        <div className="flex items-center justify-between">
-          {/* Home Team */}
-          <div className="flex-1 text-center">
-            <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-white/10 flex items-center justify-center">
-              {homeTeam?.code && (
-                <Image
-                  src={`https://resources.premierleague.com/premierleague/badges/25/t${homeTeam.code}.png`}
-                  alt={homeTeam.name}
-                  width={24}
-                  height={24}
-                  unoptimized
-                />
+            {/* Score / Time */}
+            <div className="px-4 text-center flex items-center gap-2">
+              {isLive && (
+                <div className="flex items-center gap-1 mr-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--fpl-green)] animate-pulse"></div>
+                  <span className="text-xs text-white/50">{fixture.minutes}'</span>
+                </div>
+              )}
+              {isUpcoming ? (
+                <div>
+                  <p className="text-sm font-medium text-white/60">{timeString}</p>
+                  <p className="text-xs text-white/40">{dateString}</p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <span className={cn(
+                    'text-xl font-bold',
+                    isLive ? 'text-[var(--fpl-green)]' : 'text-white'
+                  )}>
+                    {fixture.team_h_score ?? 0}
+                  </span>
+                  <span className="text-white/40">-</span>
+                  <span className={cn(
+                    'text-xl font-bold',
+                    isLive ? 'text-[var(--fpl-green)]' : 'text-white'
+                  )}>
+                    {fixture.team_a_score ?? 0}
+                  </span>
+                </div>
+              )}
+              {canExpand && (
+                <svg
+                  className={cn(
+                    'w-4 h-4 text-white/40 transition-transform ml-1',
+                    isExpanded && 'rotate-180'
+                  )}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               )}
             </div>
-            <p className="font-medium text-white text-sm">{homeTeam?.short_name}</p>
-          </div>
 
-          {/* Score */}
-          <div className="px-4 text-center">
-            {isUpcoming ? (
-              <div>
-                <p className="text-lg font-medium text-white/60">{timeString}</p>
-                <p className="text-xs text-white/40">{dateString}</p>
+            {/* Away Team */}
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              <p className="font-medium text-white text-sm">{awayTeam?.short_name}</p>
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                {awayTeam?.code && (
+                  <Image
+                    src={`https://resources.premierleague.com/premierleague/badges/25/t${awayTeam.code}.png`}
+                    alt={awayTeam.name}
+                    width={18}
+                    height={18}
+                    unoptimized
+                  />
+                )}
               </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className={cn(
-                  'text-3xl font-bold',
-                  isLive ? 'text-[var(--fpl-green)]' : 'text-white'
-                )}>
-                  {fixture.team_h_score ?? 0}
-                </span>
-                <span className="text-white/40">-</span>
-                <span className={cn(
-                  'text-3xl font-bold',
-                  isLive ? 'text-[var(--fpl-green)]' : 'text-white'
-                )}>
-                  {fixture.team_a_score ?? 0}
-                </span>
-              </div>
-            )}
+            </div>
           </div>
+        </CardContent>
+      </div>
 
-          {/* Away Team */}
-          <div className="flex-1 text-center">
-            <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-white/10 flex items-center justify-center">
-              {awayTeam?.code && (
-                <Image
-                  src={`https://resources.premierleague.com/premierleague/badges/25/t${awayTeam.code}.png`}
-                  alt={awayTeam.name}
-                  width={24}
-                  height={24}
-                  unoptimized
-                />
+      {/* Expanded Stats */}
+      {isExpanded && (
+        <div className="border-t border-white/10 px-4 py-4">
+          <div className="grid grid-cols-2 gap-6">
+            {/* Home Team Stats */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-white/60 uppercase">{homeTeam?.short_name}</p>
+
+              {/* Goals */}
+              {goals?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(goals, 'h', '⚽', 'Goal', 'text-[var(--fpl-green)]')}
+                </div>
+              )}
+
+              {/* Assists */}
+              {assists?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(assists, 'h', '🅰️', 'Assist', 'text-[var(--fpl-cyan)]')}
+                </div>
+              )}
+
+              {/* Own Goals */}
+              {ownGoals?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(ownGoals, 'h', '🔴', 'OG', 'text-red-400')}
+                </div>
+              )}
+
+              {/* Yellow Cards */}
+              {yellowCards?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(yellowCards, 'h', '🟨', 'Yellow', 'text-yellow-400')}
+                </div>
+              )}
+
+              {/* Red Cards */}
+              {redCards?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(redCards, 'h', '🟥', 'Red', 'text-red-500')}
+                </div>
+              )}
+
+              {/* Penalties Saved */}
+              {penaltiesSaved?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(penaltiesSaved, 'h', '🧤', 'Pen Saved', 'text-[var(--fpl-green)]')}
+                </div>
+              )}
+
+              {/* Saves (top 3) */}
+              {saves?.h?.length > 0 && (
+                <div className="space-y-1">
+                  {saves.h.slice(0, 3).map((p, idx) => {
+                    const player = playerMap?.get(p.element);
+                    return (
+                      <div key={`save-h-${idx}`} className="flex items-center gap-2 text-sm">
+                        <span className="text-blue-400">🧤</span>
+                        <span className="text-white/80">{player?.web_name}</span>
+                        <span className="text-white/50">{p.value} saves</span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
-            <p className="font-medium text-white text-sm">{awayTeam?.short_name}</p>
+
+            {/* Away Team Stats */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-white/60 uppercase">{awayTeam?.short_name}</p>
+
+              {/* Goals */}
+              {goals?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(goals, 'a', '⚽', 'Goal', 'text-[var(--fpl-green)]')}
+                </div>
+              )}
+
+              {/* Assists */}
+              {assists?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(assists, 'a', '🅰️', 'Assist', 'text-[var(--fpl-cyan)]')}
+                </div>
+              )}
+
+              {/* Own Goals */}
+              {ownGoals?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(ownGoals, 'a', '🔴', 'OG', 'text-red-400')}
+                </div>
+              )}
+
+              {/* Yellow Cards */}
+              {yellowCards?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(yellowCards, 'a', '🟨', 'Yellow', 'text-yellow-400')}
+                </div>
+              )}
+
+              {/* Red Cards */}
+              {redCards?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(redCards, 'a', '🟥', 'Red', 'text-red-500')}
+                </div>
+              )}
+
+              {/* Penalties Saved */}
+              {penaltiesSaved?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {renderPlayerStat(penaltiesSaved, 'a', '🧤', 'Pen Saved', 'text-[var(--fpl-green)]')}
+                </div>
+              )}
+
+              {/* Saves (top 3) */}
+              {saves?.a?.length > 0 && (
+                <div className="space-y-1">
+                  {saves.a.slice(0, 3).map((p, idx) => {
+                    const player = playerMap?.get(p.element);
+                    return (
+                      <div key={`save-a-${idx}`} className="flex items-center gap-2 text-sm">
+                        <span className="text-blue-400">🧤</span>
+                        <span className="text-white/80">{player?.web_name}</span>
+                        <span className="text-white/50">{p.value} saves</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Bonus Points */}
+          {bonus?.h?.length > 0 || bonus?.a?.length > 0 ? (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-xs font-semibold text-white/60 uppercase mb-2">Bonus Points</p>
+              <div className="flex flex-wrap gap-3">
+                {[...(bonus?.h || []), ...(bonus?.a || [])]
+                  .sort((a, b) => b.value - a.value)
+                  .slice(0, 3)
+                  .map((p, idx) => {
+                    const player = playerMap?.get(p.element);
+                    return (
+                      <div
+                        key={`bonus-${p.element}`}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-1.5 rounded-full',
+                          idx === 0 ? 'bg-yellow-500/20' : 'bg-white/10'
+                        )}
+                      >
+                        <span className={cn(
+                          'font-bold',
+                          idx === 0 ? 'text-yellow-400' : 'text-white'
+                        )}>
+                          +{p.value}
+                        </span>
+                        <span className="text-white/80 text-sm">{player?.web_name}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* BPS Leaders */}
+          {bps?.h?.length > 0 || bps?.a?.length > 0 ? (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-xs font-semibold text-white/60 uppercase mb-2">BPS Leaders</p>
+              <div className="flex flex-wrap gap-2">
+                {[...(bps?.h || []), ...(bps?.a || [])]
+                  .sort((a, b) => b.value - a.value)
+                  .slice(0, 5)
+                  .map((p, idx) => {
+                    const player = playerMap?.get(p.element);
+                    return (
+                      <div
+                        key={`bps-${p.element}`}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 text-sm"
+                      >
+                        <span className="text-white/50">{p.value}</span>
+                        <span className="text-white/80">{player?.web_name}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : null}
         </div>
-
-        {/* Finished indicator */}
-        {!isLive && !isUpcoming && (
-          <p className="text-xs text-center text-white/40 mt-3">Full Time</p>
-        )}
-      </CardContent>
+      )}
     </Card>
   );
 }
