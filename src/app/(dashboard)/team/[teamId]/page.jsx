@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { TeamPitch, TeamPitchSkeleton } from '@/components/features/team/TeamPitch';
+import { PlayerModal } from '@/components/features/player/PlayerModal';
 import { GameweekPicker, GameweekPickerCompact } from '@/components/features/gameweek/GameweekPicker';
 import { useTeamEntry, useTeamPicks, useTeamHistory } from '@/hooks/useTeam';
 import { useBootstrap, createPlayerMap, createTeamMap, useFixtures } from '@/hooks/useBootstrap';
@@ -16,6 +17,9 @@ export default function TeamPage() {
 
   // Selected gameweek state
   const [selectedGw, setSelectedGw] = useState(null);
+
+  // Selected player for modal
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   // Fetch team entry data
   const {
@@ -131,7 +135,7 @@ export default function TeamPage() {
               </p>
               <Link
                 href="/"
-                className="inline-block mt-4 text-[var(--fpl-purple)] hover:underline"
+                className="inline-block mt-4 text-[var(--fpl-cyan)] hover:underline"
               >
                 &larr; Back to Home
               </Link>
@@ -181,7 +185,7 @@ export default function TeamPage() {
           <Card>
             <CardContent className="py-4">
               <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Overall Rank</p>
-              <p className="text-2xl font-bold text-[var(--fpl-purple)]">
+              <p className="text-2xl font-bold text-white">
                 {team.summary_overall_rank?.toLocaleString() || '-'}
               </p>
             </CardContent>
@@ -283,6 +287,7 @@ export default function TeamPage() {
               teamMap={teamMap}
               liveData={liveData}
               fixtures={fixtures}
+              onPlayerClick={setSelectedPlayer}
             />
           ) : (
             <div className="pitch-bg rounded-lg p-8 text-center">
@@ -380,21 +385,49 @@ export default function TeamPage() {
             <div>
               <h2 className="text-lg font-semibold mb-4">Leagues</h2>
               <div className="space-y-2">
-                {team.leagues.classic.slice(0, 6).map((league) => (
-                  <Card key={league.id} className="p-3">
-                    <div className="flex justify-between items-center">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{league.name}</p>
-                        <p className="text-sm text-[var(--muted)]">
-                          Rank {league.entry_rank?.toLocaleString() || '-'}
-                        </p>
+                {team.leagues.classic.slice(0, 6).map((league) => {
+                  const rank = league.entry_rank;
+                  const lastRank = league.entry_last_rank;
+                  const total = league.rank_count;
+                  const movement = rank && lastRank ? lastRank - rank : 0;
+
+                  return (
+                    <Card key={league.id} className="p-3">
+                      <div className="flex justify-between items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate text-white">{league.name}</p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {rank && total ? (
+                            <>
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-[var(--fpl-green)]">
+                                  {rank.toLocaleString()}
+                                </p>
+                                <p className="text-xs text-white/50">
+                                  of {total.toLocaleString()}
+                                </p>
+                              </div>
+                              {movement !== 0 && (
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  movement > 0 ? 'bg-green-500/20' : 'bg-red-500/20'
+                                }`}>
+                                  <span className={`text-sm font-medium ${
+                                    movement > 0 ? 'text-green-400' : 'text-red-400'
+                                  }`}>
+                                    {movement > 0 ? '↑' : '↓'}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-white/50">No rank yet</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right text-sm text-[var(--muted)]">
-                        of {league.entry_count?.toLocaleString() || '-'}
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -441,6 +474,21 @@ export default function TeamPage() {
           </div>
         )}
       </main>
+
+      {/* Player Modal */}
+      {(() => {
+        const liveElement = selectedPlayer ? liveData?.elements?.find(e => e.id === selectedPlayer.id) : null;
+        return (
+          <PlayerModal
+            player={selectedPlayer}
+            team={selectedPlayer ? teamMap?.get(selectedPlayer.team) : null}
+            isOpen={!!selectedPlayer}
+            onClose={() => setSelectedPlayer(null)}
+            livePoints={liveElement?.stats?.total_points ?? 0}
+            liveStats={liveElement}
+          />
+        );
+      })()}
     </div>
   );
 }

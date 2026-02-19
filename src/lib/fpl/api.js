@@ -1,4 +1,12 @@
+import { Agent, fetch as undiciFetch } from 'undici';
 import { FPL_BASE_URL } from './endpoints';
+
+// Custom agent to handle SSL certificate issues (e.g., corporate proxies)
+const httpsAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+  },
+});
 
 /**
  * Custom error class for FPL API errors
@@ -31,14 +39,10 @@ export async function fplFetch(endpoint, options = {}) {
 
   const fetchOptions = {
     headers,
+    dispatcher: httpsAgent,
   };
 
-  // Add Next.js cache revalidation if specified
-  if (options.revalidate !== undefined) {
-    fetchOptions.next = { revalidate: options.revalidate };
-  }
-
-  const response = await fetch(`${FPL_BASE_URL}${endpoint}`, fetchOptions);
+  const response = await undiciFetch(`${FPL_BASE_URL}${endpoint}`, fetchOptions);
 
   if (!response.ok) {
     const text = await response.text();
