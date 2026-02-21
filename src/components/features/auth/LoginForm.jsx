@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -9,11 +9,19 @@ import { useAuthStore } from '@/stores/authStore';
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('reset') === 'success') {
+      setSuccessMessage('Password reset successful! Please sign in with your new password.');
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -45,6 +53,12 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {successMessage && (
+        <div className="p-3 rounded-lg bg-[var(--fpl-green)]/10 border border-[var(--fpl-green)]/20">
+          <p className="text-sm text-[var(--fpl-purple)] font-medium">{successMessage}</p>
+        </div>
+      )}
+
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
           Email
@@ -62,9 +76,17 @@ export function LoginForm() {
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-          Password
-        </label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            Password
+          </label>
+          <Link
+            href="/forgot-password"
+            className="text-sm text-[var(--fpl-purple)] hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Input
           id="password"
           type="password"
