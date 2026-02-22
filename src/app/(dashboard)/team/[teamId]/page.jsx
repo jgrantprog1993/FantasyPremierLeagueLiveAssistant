@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { TeamPitch, TeamPitchSkeleton } from '@/components/features/team/TeamPitch';
+import { CaptainAnalysis } from '@/components/features/team/CaptainAnalysis';
 import { PlayerModal } from '@/components/features/player/PlayerModal';
 import { GameweekPicker, GameweekPickerCompact } from '@/components/features/gameweek/GameweekPicker';
 import { useTeamEntry, useTeamPicks, useTeamHistory } from '@/hooks/useTeam';
@@ -242,6 +243,18 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Captain Analysis */}
+        {picksData?.picks && liveData && (
+          <div className="mb-6">
+            <CaptainAnalysis
+              picks={picksData.picks}
+              playerMap={playerMap}
+              teamMap={teamMap}
+              liveData={liveData}
+            />
+          </div>
+        )}
 
         {/* Team Pitch Section */}
         <div className="mb-8">

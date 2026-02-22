@@ -23,6 +23,18 @@ async function fetchTeamPicks(teamId, gameweek) {
 }
 
 /**
+ * Fetch a team's history
+ */
+async function fetchTeamHistory(teamId) {
+  const response = await fetch(`/api/fpl/entry/${teamId}/history`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch team history');
+  }
+  const data = await response.json();
+  return { ...data, entry: teamId };
+}
+
+/**
  * Hook to fetch league standings
  */
 export function useLeagueStandings(leagueId, options = {}) {
@@ -55,6 +67,45 @@ export function useLeagueTeamsPicks(teamIds, gameweek, options = {}) {
     isLoading: queries.some((q) => q.isLoading),
     isError: queries.some((q) => q.isError),
   };
+}
+
+/**
+ * Hook to fetch multiple teams' histories for chip tracking
+ */
+export function useLeagueTeamsHistories(teamIds, options = {}) {
+  const queries = useQueries({
+    queries: (teamIds || []).map((teamId) => ({
+      queryKey: ['history', teamId],
+      queryFn: () => fetchTeamHistory(teamId),
+      enabled: !!teamId,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+    })),
+    ...options,
+  });
+
+  return {
+    data: queries.map((q) => q.data).filter(Boolean),
+    isLoading: queries.some((q) => q.isLoading),
+    isError: queries.some((q) => q.isError),
+  };
+}
+
+/**
+ * Get chips remaining for a team based on history
+ */
+export function getChipsRemaining(history) {
+  const allChips = ['wildcard', 'freehit', 'bboost', '3xc'];
+  const usedChips = history?.chips?.map(c => c.name) || [];
+
+  // Wildcard can be used twice (one per half of season)
+  const wildcardCount = usedChips.filter(c => c === 'wildcard').length;
+  const hasWildcard = wildcardCount < 2;
+
+  return allChips.filter(chip => {
+    if (chip === 'wildcard') return hasWildcard;
+    return !usedChips.includes(chip);
+  });
 }
 
 /**

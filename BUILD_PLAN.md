@@ -11,7 +11,7 @@
 ## Planned Features
 
 ### High Priority (Quick wins)
-- [ ] Captain pick analysis - show if captain choice was optimal vs other options
+- [x] Captain pick analysis - show if captain choice was optimal vs other options
 - [ ] Bench vs Starting XI stats - show points left on bench each week
 - [ ] Fixture difficulty meter - visual indicator of upcoming opponent strength
 - [ ] Player form chart - points trend over last 5-10 gameweeks

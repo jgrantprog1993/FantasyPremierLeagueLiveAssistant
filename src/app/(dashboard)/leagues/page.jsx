@@ -5,8 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useTeamEntry } from '@/hooks/useTeam';
-import { useBootstrap } from '@/hooks/useBootstrap';
-import { useLeagueStandings, useLeagueTeamsPicks } from '@/hooks/useLeague';
+import { useBootstrap, createPlayerMap } from '@/hooks/useBootstrap';
+import { useLeagueStandings, useLeagueTeamsPicks, useLeagueTeamsHistories, getChipsRemaining } from '@/hooks/useLeague';
 import { useLiveData } from '@/hooks/useLiveData';
 import { cn } from '@/lib/utils/cn';
 
@@ -64,6 +64,12 @@ function LeaguesContent() {
     currentGw
   );
 
+  // Fetch all league teams' histories for chip tracking
+  const { data: leagueTeamsHistories } = useLeagueTeamsHistories(leagueTeamIds);
+
+  // Create player lookup map
+  const playerMap = useMemo(() => createPlayerMap(bootstrap?.elements), [bootstrap?.elements]);
+
   // Calculate live standings
   const liveStandings = useMemo(() => {
     if (!leagueData?.standings?.results || !liveData?.elements) return [];
@@ -73,8 +79,13 @@ function LeaguesContent() {
     const standings = leagueData.standings.results.map(entry => {
       // Find this team's picks
       const teamPicks = leagueTeamsPicks?.find(tp => tp?.entry === entry.entry);
+      // Find this team's history
+      const teamHistory = leagueTeamsHistories?.find(th => th?.entry === entry.entry);
 
       let liveGwPoints = entry.event_total; // Default to API value
+      let captain = null;
+      let captainPoints = 0;
+      let activeChip = teamPicks?.active_chip || null;
 
       if (teamPicks?.picks) {
         // Calculate live points from picks
@@ -85,7 +96,18 @@ function LeaguesContent() {
             const multiplier = pick.is_captain ? (pick.multiplier ?? 2) : 1;
             return sum + (points * multiplier);
           }, 0);
+
+        // Find captain
+        const captainPick = teamPicks.picks.find(p => p.is_captain);
+        if (captainPick) {
+          captain = playerMap.get(captainPick.element);
+          const basePoints = livePointsMap.get(captainPick.element) ?? 0;
+          captainPoints = basePoints * (captainPick.multiplier ?? 2);
+        }
       }
+
+      // Get chips remaining
+      const chipsRemaining = getChipsRemaining(teamHistory);
 
       // Calculate live total
       const previousTotal = entry.total - entry.event_total;
@@ -96,6 +118,10 @@ function LeaguesContent() {
         liveGwPoints,
         liveTotal,
         isCurrentUser: entry.entry === parseInt(submittedTeamId),
+        captain,
+        captainPoints,
+        activeChip,
+        chipsRemaining,
       };
     });
 
@@ -108,7 +134,7 @@ function LeaguesContent() {
       liveRank: index + 1,
       rankChange: entry.rank - (index + 1),
     }));
-  }, [leagueData, liveData, leagueTeamsPicks, submittedTeamId]);
+  }, [leagueData, liveData, leagueTeamsPicks, leagueTeamsHistories, playerMap, submittedTeamId]);
 
   // Get user's classic leagues
   // Only show private leagues (exclude public leagues like "All Ireland", "Liverpool Fans", etc.)
@@ -294,6 +320,8 @@ function LeaguesContent() {
                         <tr className="border-b border-white/10">
                           <th className="text-left py-3 px-2 text-sm text-white/60 font-medium">Live</th>
                           <th className="text-left py-3 px-2 text-sm text-white/60 font-medium">Team</th>
+                          <th className="text-left py-3 px-2 text-sm text-white/60 font-medium hidden md:table-cell">Captain</th>
+                          <th className="text-center py-3 px-2 text-sm text-white/60 font-medium hidden sm:table-cell">Chips</th>
                           <th className="text-right py-3 px-2 text-sm text-white/60 font-medium">GW{currentGw}</th>
                           <th className="text-right py-3 px-2 text-sm text-white/60 font-medium">Total</th>
                         </tr>
@@ -338,6 +366,43 @@ function LeaguesContent() {
                                 </p>
                                 <p className="text-xs text-white/50">{entry.player_name}</p>
                               </Link>
+                            </td>
+                            {/* Captain */}
+                            <td className="py-3 px-2 hidden md:table-cell">
+                              {entry.captain ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-white/80">{entry.captain.web_name}</span>
+                                  <span className="text-xs text-[var(--fpl-green)]">({entry.captainPoints})</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-white/30">-</span>
+                              )}
+                            </td>
+                            {/* Chips */}
+                            <td className="py-3 px-2 hidden sm:table-cell">
+                              <div className="flex items-center justify-center gap-1 flex-wrap">
+                                {entry.activeChip && (
+                                  <span className="px-1.5 py-0.5 bg-[var(--fpl-pink)] text-white text-[10px] font-bold rounded">
+                                    {entry.activeChip === '3xc' ? 'TC' : entry.activeChip === 'bboost' ? 'BB' : entry.activeChip === 'freehit' ? 'FH' : 'WC'}
+                                  </span>
+                                )}
+                                {!entry.activeChip && entry.chipsRemaining && (
+                                  <div className="flex gap-0.5">
+                                    {entry.chipsRemaining.includes('wildcard') && (
+                                      <span className="px-1 py-0.5 bg-white/10 text-white/50 text-[10px] rounded" title="Wildcard available">WC</span>
+                                    )}
+                                    {entry.chipsRemaining.includes('freehit') && (
+                                      <span className="px-1 py-0.5 bg-white/10 text-white/50 text-[10px] rounded" title="Free Hit available">FH</span>
+                                    )}
+                                    {entry.chipsRemaining.includes('bboost') && (
+                                      <span className="px-1 py-0.5 bg-white/10 text-white/50 text-[10px] rounded" title="Bench Boost available">BB</span>
+                                    )}
+                                    {entry.chipsRemaining.includes('3xc') && (
+                                      <span className="px-1 py-0.5 bg-white/10 text-white/50 text-[10px] rounded" title="Triple Captain available">TC</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3 px-2 text-right">
                               <span className={cn(
