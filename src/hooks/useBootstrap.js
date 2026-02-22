@@ -22,8 +22,10 @@ export function useBootstrap(options = {}) {
   return useQuery({
     queryKey: ['bootstrap'],
     queryFn: fetchBootstrap,
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 5, // 5 minutes - check for gameweek status changes
     gcTime: 1000 * 60 * 60 * 2, // 2 hours
+    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes to catch gameweek updates
+    refetchOnWindowFocus: true,
     ...options,
   });
 }
@@ -138,7 +140,9 @@ export function useFixtures(gameweek, options = {}) {
     queryKey: ['fixtures', gameweek],
     queryFn: () => fetchFixtures(gameweek),
     enabled: !!gameweek,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds - fixtures update during matches
+    refetchInterval: 1000 * 60, // Refetch every minute for live score updates
+    refetchOnWindowFocus: true,
     ...options,
   });
 }

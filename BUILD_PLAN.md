@@ -30,9 +30,9 @@
 
 ## Known Bugs
 
-- [ ] Live fixtures on production don update
-- [ ] `/leagues?team=` showing all 0s instead of live scores
-- [ ] `/live?team=` only showing user's live score, not other league members
+- [x] Live fixtures on production don't update
+- [x] `/leagues?team=` showing all 0s instead of live scores
+- [x] `/live?team=` only showing user's live score, not other league members
 
 ## UI Updates
 

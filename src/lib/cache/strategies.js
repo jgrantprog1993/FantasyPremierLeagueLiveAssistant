@@ -3,11 +3,11 @@
  * TTL values in seconds
  */
 export const CACHE_STRATEGIES = {
-  // Rarely changes, cache aggressively
+  // Contains gameweek status - needs to update during matches
   BOOTSTRAP: {
-    ttl: 3600,                    // 1 hour
-    staleWhileRevalidate: 600,    // 10 minutes
-    cdnMaxAge: 1800,              // 30 minutes on CDN
+    ttl: 300,                     // 5 minutes
+    staleWhileRevalidate: 60,     // 1 minute
+    cdnMaxAge: 180,               // 3 minutes on CDN
   },
 
   // Static during gameweek

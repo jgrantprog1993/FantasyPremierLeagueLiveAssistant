@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useTeamEntry } from '@/hooks/useTeam';
 import { useBootstrap } from '@/hooks/useBootstrap';
-import { useLeagueStandings } from '@/hooks/useLeague';
+import { useLeagueStandings, useLeagueTeamsPicks } from '@/hooks/useLeague';
+import { useLiveData } from '@/hooks/useLiveData';
 import { cn } from '@/lib/utils/cn';
 
 export default function LeaguesPage() {
@@ -47,6 +48,67 @@ function LeaguesContent() {
 
   // Fetch selected league standings
   const { data: leagueData, isLoading: leagueLoading } = useLeagueStandings(selectedLeagueId);
+
+  // Fetch live data
+  const { data: liveData } = useLiveData(currentGw);
+
+  // Get all team IDs from league standings
+  const leagueTeamIds = useMemo(() => {
+    if (!leagueData?.standings?.results) return [];
+    return leagueData.standings.results.map(r => r.entry);
+  }, [leagueData]);
+
+  // Fetch all league teams' picks for live calculation
+  const { data: leagueTeamsPicks, isLoading: leaguePicksLoading } = useLeagueTeamsPicks(
+    leagueTeamIds,
+    currentGw
+  );
+
+  // Calculate live standings
+  const liveStandings = useMemo(() => {
+    if (!leagueData?.standings?.results || !liveData?.elements) return [];
+
+    const livePointsMap = new Map(liveData.elements.map(e => [e.id, e.stats?.total_points ?? 0]));
+
+    const standings = leagueData.standings.results.map(entry => {
+      // Find this team's picks
+      const teamPicks = leagueTeamsPicks?.find(tp => tp?.entry === entry.entry);
+
+      let liveGwPoints = entry.event_total; // Default to API value
+
+      if (teamPicks?.picks) {
+        // Calculate live points from picks
+        liveGwPoints = teamPicks.picks
+          .filter(p => p.position <= 11)
+          .reduce((sum, pick) => {
+            const points = livePointsMap.get(pick.element) ?? 0;
+            const multiplier = pick.is_captain ? (pick.multiplier ?? 2) : 1;
+            return sum + (points * multiplier);
+          }, 0);
+      }
+
+      // Calculate live total
+      const previousTotal = entry.total - entry.event_total;
+      const liveTotal = previousTotal + liveGwPoints;
+
+      return {
+        ...entry,
+        liveGwPoints,
+        liveTotal,
+        isCurrentUser: entry.entry === parseInt(submittedTeamId),
+      };
+    });
+
+    // Sort by live total
+    standings.sort((a, b) => b.liveTotal - a.liveTotal);
+
+    // Add live rank
+    return standings.map((entry, index) => ({
+      ...entry,
+      liveRank: index + 1,
+      rankChange: entry.rank - (index + 1),
+    }));
+  }, [leagueData, liveData, leagueTeamsPicks, submittedTeamId]);
 
   // Get user's classic leagues
   // Only show private leagues (exclude public leagues like "All Ireland", "Liverpool Fans", etc.)
@@ -217,7 +279,7 @@ function LeaguesContent() {
                   )}
                 </div>
 
-                {leagueLoading && (
+                {(leagueLoading || leaguePicksLoading) && (
                   <div className="animate-pulse space-y-2">
                     {[1, 2, 3, 4, 5].map(i => (
                       <div key={i} className="h-14 bg-[var(--border)] rounded"></div>
@@ -225,78 +287,78 @@ function LeaguesContent() {
                   </div>
                 )}
 
-                {!leagueLoading && leagueData?.standings?.results && (
+                {!leagueLoading && !leaguePicksLoading && liveStandings.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-2 text-sm text-white/60 font-medium">Rank</th>
+                          <th className="text-left py-3 px-2 text-sm text-white/60 font-medium">Live</th>
                           <th className="text-left py-3 px-2 text-sm text-white/60 font-medium">Team</th>
                           <th className="text-right py-3 px-2 text-sm text-white/60 font-medium">GW{currentGw}</th>
                           <th className="text-right py-3 px-2 text-sm text-white/60 font-medium">Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {leagueData.standings.results.map((entry) => {
-                          const isCurrentUser = entry.entry === parseInt(submittedTeamId);
-                          const rankChange = entry.last_rank ? entry.last_rank - entry.rank : 0;
-
-                          return (
-                            <tr
-                              key={entry.id}
-                              className={cn(
-                                'border-b border-white/5 hover:bg-white/5 transition-colors',
-                                isCurrentUser && 'bg-[var(--fpl-purple)]/20'
-                              )}
-                            >
-                              <td className="py-3 px-2">
-                                <div className="flex items-center gap-2">
+                        {liveStandings.map((entry) => (
+                          <tr
+                            key={entry.id}
+                            className={cn(
+                              'border-b border-white/5 hover:bg-white/5 transition-colors',
+                              entry.isCurrentUser && 'bg-[var(--fpl-purple)]/20'
+                            )}
+                          >
+                            <td className="py-3 px-2">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  'font-bold',
+                                  entry.liveRank <= 3 ? 'text-[var(--fpl-green)]' : 'text-white'
+                                )}>
+                                  {entry.liveRank}
+                                </span>
+                                {entry.rankChange !== 0 && (
                                   <span className={cn(
-                                    'font-bold',
-                                    entry.rank <= 3 ? 'text-[var(--fpl-green)]' : 'text-white'
+                                    'text-xs',
+                                    entry.rankChange > 0 ? 'text-green-400' : 'text-red-400'
                                   )}>
-                                    {entry.rank}
+                                    {entry.rankChange > 0 ? `▲${entry.rankChange}` : `▼${Math.abs(entry.rankChange)}`}
                                   </span>
-                                  {rankChange !== 0 && (
-                                    <span className={cn(
-                                      'text-xs',
-                                      rankChange > 0 ? 'text-green-400' : 'text-red-400'
-                                    )}>
-                                      {rankChange > 0 ? `▲${rankChange}` : `▼${Math.abs(rankChange)}`}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-2">
-                                <Link
-                                  href={`/team/${entry.entry}`}
-                                  className="hover:text-[var(--fpl-green)] transition-colors"
-                                >
-                                  <p className={cn(
-                                    'font-medium truncate max-w-[200px]',
-                                    isCurrentUser ? 'text-[var(--fpl-green)]' : 'text-white'
-                                  )}>
-                                    {entry.entry_name}
-                                  </p>
-                                  <p className="text-xs text-white/50">{entry.player_name}</p>
-                                </Link>
-                              </td>
-                              <td className="py-3 px-2 text-right">
-                                <span className="text-white/80">{entry.event_total}</span>
-                              </td>
-                              <td className="py-3 px-2 text-right">
-                                <span className="font-bold text-white">{entry.total}</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <Link
+                                href={`/team/${entry.entry}`}
+                                className="hover:text-[var(--fpl-green)] transition-colors"
+                              >
+                                <p className={cn(
+                                  'font-medium truncate max-w-[200px]',
+                                  entry.isCurrentUser ? 'text-[var(--fpl-green)]' : 'text-white'
+                                )}>
+                                  {entry.entry_name}
+                                </p>
+                                <p className="text-xs text-white/50">{entry.player_name}</p>
+                              </Link>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <span className={cn(
+                                'font-medium',
+                                entry.liveGwPoints > entry.event_total ? 'text-[var(--fpl-green)]' : 'text-white/80'
+                              )}>
+                                {entry.liveGwPoints}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <span className="font-bold text-white">{entry.liveTotal}</span>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
 
                     {/* Pagination info */}
-                    {leagueData.standings.has_next && (
+                    {leagueData?.standings?.has_next && (
                       <p className="text-center text-sm text-white/50 mt-4">
-                        Showing top {leagueData.standings.results.length} managers
+                        Showing top {liveStandings.length} managers
                       </p>
                     )}
                   </div>

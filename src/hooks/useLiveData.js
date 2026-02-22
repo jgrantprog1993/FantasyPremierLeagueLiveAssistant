@@ -27,16 +27,23 @@ export function useLiveData(gameweek, options = {}) {
   const gw = gameweek ?? currentGw?.id;
 
   // Determine if gameweek is finished
-  const isFinished = currentGw?.finished ?? false;
-  const isActive = !isFinished && currentGw?.is_current;
+  // Be conservative - only stop refreshing if we're certain it's finished
+  const isFinished = currentGw?.finished === true;
+
+  // Always refresh if we have a gameweek and it's not confirmed finished
+  // This ensures live updates work even if bootstrap data is stale
+  const shouldRefresh = !!gw && !isFinished;
 
   return useQuery({
     queryKey: ['live', gw],
     queryFn: () => fetchLiveData(gw),
     enabled: !!gw,
-    // Refresh every 30 seconds during active matches, less often otherwise
-    refetchInterval: isActive ? 30000 : false,
-    staleTime: isFinished ? 1000 * 60 * 60 * 24 : 1000 * 30, // 24h if finished, 30s if active
+    // Refresh every 30 seconds unless gameweek is confirmed finished
+    refetchInterval: shouldRefresh ? 30000 : false,
+    // Short stale time to ensure fresh data
+    staleTime: isFinished ? 1000 * 60 * 60 * 24 : 1000 * 15, // 24h if finished, 15s if active
+    // Refetch on window focus during active gameweeks
+    refetchOnWindowFocus: shouldRefresh,
     ...options,
   });
 }

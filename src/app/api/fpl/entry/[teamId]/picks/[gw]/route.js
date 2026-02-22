@@ -43,7 +43,8 @@ export async function GET(request, { params }) {
       revalidate: cacheStrategy.ttl,
     });
 
-    return NextResponse.json(data, {
+    // Add entry ID to response for league-wide comparisons
+    return NextResponse.json({ ...data, entry: id }, {
       headers: {
         'Cache-Control': `s-maxage=${cacheStrategy.cdnMaxAge}, stale-while-revalidate=${cacheStrategy.staleWhileRevalidate}`,
       },
